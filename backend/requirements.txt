@@ -6,7 +6,6 @@ python-multipart==0.0.6
 
 # Database
 sqlalchemy==2.0.23
-sqlite3
 
 # HTTP client for Ollama integration
 httpx==0.25.2
