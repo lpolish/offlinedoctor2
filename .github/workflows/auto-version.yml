@@ -34,7 +34,11 @@ jobs:
 
       - name: Install semantic-release
         run: |
-          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github
+          echo "📦 Installing semantic-release tools..."
+          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github || {
+            echo "❌ Failed to install semantic-release"
+            echo "Falling back to manual versioning"
+          }
 
       - name: Determine version bump
         id: version

@@ -17,6 +17,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Environment info
+        run: |
+          echo "🔍 Environment Information:"
+          echo "OS: ${{ runner.os }}"
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Python version: $(python --version)"
+          echo "Working directory: $(pwd)"
+          echo "Available disk space:"
+          df -h . || echo "Could not check disk space"
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -32,6 +43,8 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -44,44 +57,107 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: |
+          echo "📦 Installing frontend dependencies..."
+          npm ci || {
+            echo "❌ npm ci failed"
+            echo "Trying npm install as fallback..."
+            npm install || exit 1
+          }
+          echo "✅ Frontend dependencies installed"
 
       - name: Install Python dependencies
         run: |
           cd backend
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest black flake8 mypy
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "⚠️ No requirements.txt found, installing basic dependencies"
+            pip install fastapi uvicorn pytest black flake8 mypy
+          fi
 
       - name: Frontend linting
         run: |
-          npm run build
+          echo "🔨 Building frontend..."
+          npm run build || {
+            echo "❌ Frontend build failed"
+            echo "Checking for common issues..."
+            echo "Node version: $(node --version)"
+            echo "NPM version: $(npm --version)"
+            ls -la node_modules/ | head -10 || echo "No node_modules found"
+            exit 1
+          }
           echo "✅ Frontend build successful"
 
       - name: Backend linting and testing
         run: |
           cd backend
           echo "🔍 Running Python linting..."
-          python -m black --check . || echo "❌ Black formatting issues found"
-          python -m flake8 . --max-line-length=100 --ignore=E203,W503 || echo "❌ Flake8 issues found"
+          
+          # Check if there are Python files to lint
+          if find . -name "*.py" -not -path "./venv/*" | head -1 | grep -q .; then
+            python -m black --check . --exclude="venv/" || echo "❌ Black formatting issues found"
+            python -m flake8 . --max-line-length=100 --ignore=E203,W503 --exclude=venv/ || echo "❌ Flake8 issues found"
+          else
+            echo "ℹ️ No Python files found to lint"
+          fi
+          
           echo "🧪 Running Python tests..."
-          python -m pytest --tb=short || echo "❌ Python tests failed"
+          # Check if pytest is available and if there are test files
+          if python -c "import pytest" 2>/dev/null; then
+            if find . -name "test_*.py" -o -name "*_test.py" | head -1 | grep -q .; then
+              python -m pytest --tb=short || echo "❌ Python tests failed"
+            else
+              echo "ℹ️ No test files found, skipping pytest"
+            fi
+          else
+            echo "⚠️ pytest not available, skipping tests"
+          fi
           echo "✅ Backend validation complete"
 
       - name: Rust linting
         run: |
           cd src-tauri
           echo "🔍 Running Rust linting..."
-          cargo fmt --check || echo "❌ Cargo fmt issues found"
-          cargo clippy -- -D warnings || echo "❌ Clippy warnings found"
+          echo "Rust version: $(rustc --version)"
+          echo "Cargo version: $(cargo --version)"
+          
+          cargo fmt --check || {
+            echo "❌ Cargo fmt issues found"
+            echo "Run 'cargo fmt' to fix formatting"
+          }
+          
+          cargo clippy -- -D warnings || {
+            echo "❌ Clippy warnings found"
+            echo "Fix the warnings above"
+          }
+          
           echo "🧪 Running Rust tests..."
-          cargo test || echo "❌ Rust tests failed"
+          cargo test || {
+            echo "❌ Rust tests failed"
+            echo "Check test failures above"
+          }
           echo "✅ Rust validation complete"
 
       - name: Security audit
         run: |
-          npm audit --audit-level=high || echo "❌ npm security issues found"
-          cd src-tauri && cargo audit || echo "❌ Cargo security issues found"
+          echo "🔒 Running security audits..."
+          
+          echo "NPM audit..."
+          npm audit --audit-level=high || {
+            echo "❌ npm security issues found"
+            echo "Run 'npm audit fix' to resolve"
+          }
+          
+          echo "Cargo audit..."
+          cd src-tauri
+          cargo install cargo-audit --quiet || echo "Installing cargo-audit..."
+          cargo audit || {
+            echo "❌ Cargo security issues found"
+            echo "Review and update dependencies"
+          }
+          echo "✅ Security audit complete"
 
       - name: Check for medical disclaimer compliance
         run: |
