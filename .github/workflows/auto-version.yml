@@ -1,0 +1,174 @@
+name: "Auto Version and Changelog"
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - '.github/**'
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  auto-version:
+    runs-on: ubuntu-22.04
+    if: "!contains(github.event.head_commit.message, '[skip-version]')"
+    
+    outputs:
+      new-version: ${{ steps.version.outputs.new-version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github
+
+      - name: Determine version bump
+        id: version
+        run: |
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $LAST_TAG"
+          
+          # Get commit messages since last tag
+          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" || git log --pretty=format:"%s")
+          echo "Commits since last tag:"
+          echo "$COMMITS"
+          
+          # Determine version bump based on conventional commits
+          if echo "$COMMITS" | grep -i "BREAKING CHANGE\|!:" >/dev/null; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -i "^feat\|^feature" >/dev/null; then
+            BUMP="minor"
+          elif echo "$COMMITS" | grep -i "^fix\|^bug\|^patch" >/dev/null; then
+            BUMP="patch"
+          else
+            BUMP="patch"  # Default to patch for any other changes
+          fi
+          
+          echo "Determined bump: $BUMP"
+          
+          # Calculate new version
+          CURRENT_VERSION=$(echo $LAST_TAG | sed 's/v//')
+          IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+          
+          case $BUMP in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New version: v$NEW_VERSION"
+          echo "new-version=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new-version }}"
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          
+          echo "## [$NEW_VERSION] - $(date +%Y-%m-%d)" > CHANGELOG_ENTRY.md
+          echo "" >> CHANGELOG_ENTRY.md
+          
+          # Get commits since last tag and categorize them
+          git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --grep="^feat" >> FEATURES.tmp 2>/dev/null || true
+          git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --grep="^fix" >> FIXES.tmp 2>/dev/null || true
+          git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --grep="^docs" >> DOCS.tmp 2>/dev/null || true
+          
+          if [ -s FEATURES.tmp ]; then
+            echo "### ✨ New Features" >> CHANGELOG_ENTRY.md
+            cat FEATURES.tmp >> CHANGELOG_ENTRY.md
+            echo "" >> CHANGELOG_ENTRY.md
+          fi
+          
+          if [ -s FIXES.tmp ]; then
+            echo "### 🐛 Bug Fixes" >> CHANGELOG_ENTRY.md
+            cat FIXES.tmp >> CHANGELOG_ENTRY.md
+            echo "" >> CHANGELOG_ENTRY.md
+          fi
+          
+          if [ -s DOCS.tmp ]; then
+            echo "### 📚 Documentation" >> CHANGELOG_ENTRY.md
+            cat DOCS.tmp >> CHANGELOG_ENTRY.md
+            echo "" >> CHANGELOG_ENTRY.md
+          fi
+          
+          # Add all other commits
+          echo "### 🔧 Other Changes" >> CHANGELOG_ENTRY.md
+          git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --invert-grep --grep="^feat\|^fix\|^docs" >> CHANGELOG_ENTRY.md 2>/dev/null || true
+          echo "" >> CHANGELOG_ENTRY.md
+          
+          # Update main changelog
+          if [ -f CHANGELOG.md ]; then
+            cp CHANGELOG.md CHANGELOG_OLD.md
+            cat CHANGELOG_ENTRY.md > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            cat CHANGELOG_OLD.md >> CHANGELOG.md
+          else
+            cp CHANGELOG_ENTRY.md CHANGELOG.md
+          fi
+          
+          # Clean up
+          rm -f FEATURES.tmp FIXES.tmp DOCS.tmp CHANGELOG_OLD.md
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG_ENTRY.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update Tauri version
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new-version }}"
+          VERSION_NUMBER=$(echo $NEW_VERSION | sed 's/v//')
+          
+          # Update Tauri config
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" src-tauri/tauri.conf.json
+          
+          # Update package.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION_NUMBER\"/" package.json
+          
+          # Update Cargo.toml
+          sed -i "s/version = \".*\"/version = \"$VERSION_NUMBER\"/" src-tauri/Cargo.toml
+
+      - name: Commit version bump
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new-version }}"
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git add CHANGELOG.md package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+          git commit -m "chore: bump version to $NEW_VERSION [skip-version]" || exit 0
+
+      - name: Create and push tag
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new-version }}"
+          
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+          git push origin main
+          git push origin "$NEW_VERSION"
