@@ -166,13 +166,50 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          git add CHANGELOG.md package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-          git commit -m "chore: bump version to $NEW_VERSION [skip-version]" || exit 0
+          # Check if there are any changes to commit
+          if git diff --staged --quiet && git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add CHANGELOG.md package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+            git commit -m "chore: bump version to $NEW_VERSION [skip-version]" || {
+              echo "Commit failed, checking if files were already committed..."
+              git status
+            }
+          fi
 
       - name: Create and push tag
         run: |
           NEW_VERSION="${{ steps.version.outputs.new-version }}"
           
-          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
-          git push origin main
-          git push origin "$NEW_VERSION"
+          # Ensure we're on the correct branch and have latest changes
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          
+          # Create and push tag
+          if git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"; then
+            echo "Tag $NEW_VERSION created successfully"
+            
+            # Push changes and tag separately to avoid conflicts
+            if git push origin main; then
+              echo "Successfully pushed to main"
+              if git push origin "$NEW_VERSION"; then
+                echo "Successfully pushed tag $NEW_VERSION"
+              else
+                echo "Failed to push tag, but main branch was updated"
+                exit 1
+              fi
+            else
+              echo "Failed to push to main branch"
+              exit 1
+            fi
+          else
+            echo "Failed to create tag $NEW_VERSION"
+            echo "Checking if tag already exists..."
+            if git tag -l | grep -q "^$NEW_VERSION$"; then
+              echo "Tag $NEW_VERSION already exists, skipping..."
+              exit 0
+            else
+              exit 1
+            fi
+          fi

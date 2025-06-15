@@ -58,6 +58,7 @@ jobs:
           cache: 'npm'
 
       - name: Install frontend dependencies
+        shell: bash
         run: |
           echo "Installing frontend dependencies..."
           npm ci || {
@@ -72,6 +73,7 @@ jobs:
           echo "Frontend dependencies installed"
 
       - name: Build frontend
+        shell: bash
         run: |
           echo "Building frontend for release..."
           npm run build || {
@@ -87,9 +89,9 @@ jobs:
           # Validate build output
           if [ -d "dist" ]; then
             echo "Build output size:"
-            du -sh dist/
+            du -sh dist/ 2>/dev/null || echo "Could not determine size"
             echo "Build files:"
-            find dist/ -type f | head -10
+            find dist/ -type f 2>/dev/null | head -10 || ls dist/ | head -10
           else
             echo "dist directory not found"
           fi
