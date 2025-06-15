@@ -12,10 +12,17 @@
     "healthcare"
   ],
   "scripts": {
-    "dev": "vite",
+    "postinstall": "bash install-ollama.sh --auto",
+    "setup": "bash install-ollama.sh",
+    "setup:full": "bash install-ollama.sh --full",
+    "dev": "npm run ensure-ollama && vite",
+    "dev-with-proxy": "node proxy-server.js & vite",
     "build": "tsc && vite build",
+    "build:tauri": "npm run ensure-ollama && tauri build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "ensure-ollama": "bash scripts/ensure-ollama.sh",
+    "start-ollama": "ollama serve > /tmp/ollama.log 2>&1 &",
     "test": "bash scripts/health-check.sh",
     "test:frontend": "bash scripts/test-frontend.sh",
     "test:backend": "bash scripts/test-backend.sh",
@@ -29,6 +36,9 @@
     "@tailwindcss/postcss": "^4.1.10",
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

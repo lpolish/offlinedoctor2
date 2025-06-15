@@ -1,11 +1,13 @@
 import { AppProvider } from './context/AppContext';
-import Layout from './components/Layout/Layout';
+import ChatPage from './components/Pages/ChatPage';
 import './App.css';
 
 function App() {
   return (
     <AppProvider>
-      <Layout />
+      <div className="h-screen bg-gray-50">
+        <ChatPage />
+      </div>
     </AppProvider>
   );
 }

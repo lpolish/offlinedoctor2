@@ -269,22 +269,13 @@ async fn start_ai_service_internal(app_handle: tauri::AppHandle) -> Result<Strin
     let config = OllamaConfig::default();
     let ollama_manager = OllamaManager::new(config);
 
-    // Try to start embedded Ollama first
-    match ollama_manager.start_embedded(&app_handle).await {
-        Ok(_) => {
-            println!("Embedded Ollama started successfully");
+    // Try to connect to external Ollama (skip embedded to avoid glibc issues)
+    match ollama_manager.health_check().await {
+        Ok(true) => {
+            println!("Connected to external Ollama successfully");
         }
-        Err(e) => {
-            println!("Failed to start embedded Ollama, trying external: {}", e);
-            // Try to connect to external Ollama
-            match ollama_manager.health_check().await {
-                Ok(true) => {
-                    println!("Connected to external Ollama");
-                }
-                Ok(false) | Err(_) => {
-                    return Err("No Ollama instance available (embedded or external)".to_string());
-                }
-            }
+        Ok(false) | Err(_) => {
+            return Err("External Ollama service is not available. Please start Ollama manually with: ollama serve".to_string());
         }
     }
 
