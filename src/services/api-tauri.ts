@@ -181,25 +181,6 @@ class ApiService {
       return false;
     }
   }
-
-  /**
-   * Handle API errors consistently
-   */
-  // private handleError(error: any, operation: string): never {
-  //   console.error(`API Error in ${operation}:`, error);
-    
-  //   if (error instanceof ApiError) {
-  //     throw error;
-  //   }
-    
-  //   // Handle Tauri-specific errors
-  //   if (typeof error === 'string') {
-  //     throw new ApiError(error);
-  //   }
-    
-  //   // Handle generic errors
-  //   throw new ApiError(`${operation} failed: ${error.message || 'Unknown error'}`);
-  // }
 }
 
 // Export singleton instance
