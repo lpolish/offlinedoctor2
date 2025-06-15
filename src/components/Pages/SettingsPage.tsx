@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 
 export default function SettingsPage() {
-  const { state, updateSettings, checkSystemHealth, reconnectBackend } = useApp();
+  const { state, updateSettings, checkSystemHealth, reconnectBackend, initializeAI, stopAI } = useApp();
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isManagingAI, setIsManagingAI] = useState(false);
 
   const handleSettingChange = (key: string, value: any) => {
     updateSettings({ [key]: value });
@@ -16,6 +17,24 @@ export default function SettingsPage() {
       await checkSystemHealth();
     } finally {
       setIsTestingConnection(false);
+    }
+  };
+
+  const handleStartAI = async () => {
+    setIsManagingAI(true);
+    try {
+      await initializeAI();
+    } finally {
+      setIsManagingAI(false);
+    }
+  };
+
+  const handleStopAI = async () => {
+    setIsManagingAI(true);
+    try {
+      await stopAI();
+    } finally {
+      setIsManagingAI(false);
     }
   };
 
@@ -56,10 +75,26 @@ export default function SettingsPage() {
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">AI Service</span>
+                    <span className="text-sm font-medium text-gray-700">AI Service (Backend)</span>
                     <span className={`text-sm ${state.systemHealth.ai_service === 'healthy' ? 'text-green-600' : 'text-yellow-600'}`}>
                       {state.systemHealth.ai_service}
                     </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Embedded AI</span>
+                    <div className="flex items-center space-x-2">
+                      <span className={`w-2 h-2 rounded-full ${
+                        state.aiServiceStatus === 'running' ? 'bg-green-500' : 
+                        state.aiServiceStatus === 'starting' ? 'bg-yellow-500' : 'bg-gray-400'
+                      }`}></span>
+                      <span className={`text-sm capitalize ${
+                        state.aiServiceStatus === 'running' ? 'text-green-600' : 
+                        state.aiServiceStatus === 'starting' ? 'text-yellow-600' : 'text-gray-600'
+                      }`}>
+                        {state.aiServiceStatus}
+                      </span>
+                    </div>
                   </div>
                   
                   <div className="flex items-center justify-between">
@@ -160,21 +195,74 @@ export default function SettingsPage() {
         {/* AI Configuration */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
           <div className="p-4 border-b border-gray-200">
-            <h2 className="font-semibold text-gray-900">AI Configuration</h2>
+            <h2 className="font-semibold text-gray-900">AI Service Management</h2>
           </div>
-          <div className="p-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h3 className="font-medium text-yellow-800 mb-2">🤖 Ollama Integration</h3>
-              <p className="text-sm text-yellow-700">
-                This application uses Ollama for local AI processing. Make sure Ollama is installed and running 
-                with a medical-capable model for best results.
+          <div className="p-4 space-y-4">
+            {/* AI Service Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">AI Service Status</span>
+                <div className="flex items-center space-x-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    state.aiServiceStatus === 'running' ? 'bg-green-500' : 
+                    state.aiServiceStatus === 'starting' ? 'bg-yellow-500 animate-pulse' : 
+                    state.aiServiceStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
+                  }`}></span>
+                  <span className={`text-sm capitalize ${
+                    state.aiServiceStatus === 'running' ? 'text-green-600' : 
+                    state.aiServiceStatus === 'starting' ? 'text-yellow-600' : 
+                    state.aiServiceStatus === 'error' ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    {state.aiServiceStatus}
+                  </span>
+                </div>
+              </div>
+
+              {state.aiServiceMessage && (
+                <div className="md:col-span-2">
+                  <div className={`p-3 rounded-lg text-sm ${
+                    state.aiServiceStatus === 'error' 
+                      ? 'bg-red-50 text-red-700 border border-red-200'
+                      : 'bg-blue-50 text-blue-700 border border-blue-200'
+                  }`}>
+                    {state.aiServiceMessage}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* AI Service Controls */}
+            <div className="flex space-x-3">
+              <button
+                onClick={handleStartAI}
+                disabled={isManagingAI || state.aiServiceStatus === 'running' || state.aiServiceStatus === 'starting'}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {isManagingAI ? 'Managing...' : 'Start AI Service'}
+              </button>
+              <button
+                onClick={handleStopAI}
+                disabled={isManagingAI || state.aiServiceStatus === 'stopped' || state.aiServiceStatus === 'starting'}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {isManagingAI ? 'Managing...' : 'Stop AI Service'}
+              </button>
+            </div>
+
+            {/* Information */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-medium text-blue-800 mb-2">🤖 Embedded Ollama</h3>
+              <p className="text-sm text-blue-700 mb-3">
+                This application includes an embedded Ollama AI service for completely offline operation. 
+                The AI models are bundled with the application for true portability.
               </p>
-              <div className="mt-3 text-sm text-yellow-700">
-                <p><strong>Recommended models:</strong></p>
+              <div className="text-sm text-blue-700">
+                <p><strong>Features:</strong></p>
                 <ul className="list-disc list-inside mt-1 space-y-1">
-                  <li>llama2:7b - General purpose medical assistance</li>
-                  <li>llama2:13b - Enhanced medical knowledge</li>
-                  <li>medalpaca - Specialized medical model</li>
+                  <li>No internet connection required</li>
+                  <li>Medical AI models pre-installed</li>
+                  <li>Complete data privacy and security</li>
+                  <li>Portable across devices</li>
                 </ul>
               </div>
             </div>

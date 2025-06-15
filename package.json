@@ -15,7 +15,15 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "bash scripts/health-check.sh",
+    "test:frontend": "bash scripts/test-frontend.sh",
+    "test:backend": "bash scripts/test-backend.sh",
+    "test:build": "bash scripts/test-build.sh",
+    "test:dev": "bash scripts/test-dev.sh",
+    "test:api": "bash scripts/test-api.sh",
+    "test:all": "bash scripts/test-all.sh",
+    "guide": "bash scripts/developer-guide.sh"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.10",

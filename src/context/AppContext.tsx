@@ -7,6 +7,7 @@
 
 import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { apiService, MedicalResponse, SystemHealth, SessionInfo, ApiError } from '../services/api';
+import { initializeAIService, stopAIService } from '../services/api-tauri';
 
 // State interface
 interface AppState {
@@ -17,6 +18,10 @@ interface AppState {
   // System status
   systemHealth: SystemHealth | null;
   isBackendConnected: boolean;
+  
+  // AI Service status
+  aiServiceStatus: 'stopped' | 'starting' | 'running' | 'error';
+  aiServiceMessage: string | null;
   
   // UI state
   isLoading: boolean;
@@ -39,6 +44,7 @@ type AppAction =
   | { type: 'SET_HISTORY'; payload: MedicalResponse[] }
   | { type: 'SET_SYSTEM_HEALTH'; payload: SystemHealth }
   | { type: 'SET_BACKEND_CONNECTION'; payload: boolean }
+  | { type: 'SET_AI_SERVICE_STATUS'; payload: { status: AppState['aiServiceStatus']; message?: string | null } }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppState['settings']> }
   | { type: 'RESET_STATE' };
 
@@ -48,6 +54,8 @@ const initialState: AppState = {
   sessionHistory: [],
   systemHealth: null,
   isBackendConnected: false,
+  aiServiceStatus: 'stopped',
+  aiServiceMessage: null,
   isLoading: false,
   error: null,
   settings: {
@@ -92,6 +100,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_BACKEND_CONNECTION':
       return { ...state, isBackendConnected: action.payload };
     
+    case 'SET_AI_SERVICE_STATUS':
+      return { 
+        ...state, 
+        aiServiceStatus: action.payload.status,
+        aiServiceMessage: action.payload.message ?? state.aiServiceMessage
+      };
+    
     case 'UPDATE_SETTINGS':
       return {
         ...state,
@@ -118,6 +133,10 @@ interface AppContextType {
   // System actions
   checkSystemHealth: () => Promise<void>;
   reconnectBackend: () => Promise<boolean>;
+  
+  // AI Service actions
+  initializeAI: () => Promise<void>;
+  stopAI: () => Promise<void>;
   
   // UI actions
   setError: (error: string | null) => void;
@@ -255,6 +274,35 @@ export function AppProvider({ children }: AppProviderProps) {
     dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
   };
 
+  // AI Service management
+  const initializeAI = async () => {
+    try {
+      dispatch({ type: 'SET_AI_SERVICE_STATUS', payload: { status: 'starting', message: 'Initializing AI service...' } });
+      const result = await initializeAIService();
+      dispatch({ type: 'SET_AI_SERVICE_STATUS', payload: { status: 'running', message: result } });
+      // Refresh system health after AI service starts
+      await checkSystemHealth();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize AI service';
+      dispatch({ type: 'SET_AI_SERVICE_STATUS', payload: { status: 'error', message: errorMessage } });
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    }
+  };
+
+  const stopAI = async () => {
+    try {
+      dispatch({ type: 'SET_AI_SERVICE_STATUS', payload: { status: 'starting', message: 'Stopping AI service...' } });
+      const result = await stopAIService();
+      dispatch({ type: 'SET_AI_SERVICE_STATUS', payload: { status: 'stopped', message: result } });
+      // Refresh system health after AI service stops
+      await checkSystemHealth();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to stop AI service';
+      dispatch({ type: 'SET_AI_SERVICE_STATUS', payload: { status: 'error', message: errorMessage } });
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    }
+  };
+
   // Initialize system health check on mount
   useEffect(() => {
     checkSystemHealth();
@@ -272,6 +320,8 @@ export function AppProvider({ children }: AppProviderProps) {
     getSessionHistory,
     checkSystemHealth,
     reconnectBackend,
+    initializeAI,
+    stopAI,
     setError,
     clearError,
     updateSettings

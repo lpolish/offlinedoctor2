@@ -1,16 +1,276 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
-/* Custom styles for the medical assistant */
+/* Define theme with explicit color values for v4 compatibility */
+@theme {
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+  
+  --color-medical-50: #f0fdfa;
+  --color-medical-100: #ccfbf1;
+  --color-medical-200: #99f6e4;
+  --color-medical-300: #5eead4;
+  --color-medical-400: #2dd4bf;
+  --color-medical-500: #14b8a6;
+  --color-medical-600: #0d9488;
+  --color-medical-700: #0f766e;
+  --color-medical-800: #115e59;
+  --color-medical-900: #134e4a;
+  
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-800: #166534;
+  --color-success-900: #14532d;
+  
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-red-900: #7f1d1d;
+  
+  --color-yellow-50: #fffbeb;
+  --color-yellow-100: #fef3c7;
+  --color-yellow-200: #fde68a;
+  --color-yellow-300: #fcd34d;
+  --color-yellow-400: #fbbf24;
+  --color-yellow-500: #f59e0b;
+  --color-yellow-600: #d97706;
+  --color-yellow-700: #b45309;
+  --color-yellow-800: #92400e;
+  --color-yellow-900: #78350f;
+}
+
+/* Custom base styles */
+@layer base {
+  * {
+    border-color: var(--color-gray-200);
+  }
+  
+  body {
+    background-color: var(--color-gray-50);
+    color: var(--color-gray-900);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  /* Scrollbar styles */
+  ::-webkit-scrollbar {
+    width: 0.5rem;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background-color: var(--color-gray-100);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-gray-300);
+    border-radius: 9999px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-gray-400);
+  }
+}
+
+/* Component styles */
+@layer components {
+  .btn-primary {
+    background-color: var(--color-blue-600);
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .btn-primary:hover {
+    background-color: var(--color-blue-700);
+  }
+  
+  .btn-primary:disabled {
+    background-color: var(--color-gray-400);
+    cursor: not-allowed;
+  }
+  
+  .btn-secondary {
+    background-color: white;
+    border: 1px solid var(--color-gray-300);
+    color: var(--color-gray-700);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .btn-secondary:hover {
+    background-color: var(--color-gray-50);
+  }
+  
+  .card {
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--color-gray-100);
+    padding: 1.5rem;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    border-color: var(--color-blue-200);
+    transform: translateY(-2px);
+  }
+  
+  .medical-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background-color: var(--color-medical-100);
+    color: var(--color-medical-800);
+  }
+  
+  .status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
+  }
+  
+  .input-field {
+    width: 100%;
+    border: 1px solid var(--color-gray-300);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .input-field:focus {
+    outline: none;
+    ring: 2px solid var(--color-blue-500);
+    border-color: transparent;
+  }
+  
+  .input-field:disabled {
+    background-color: var(--color-gray-100);
+    cursor: not-allowed;
+  }
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    transform: translateY(10px); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes emergency-pulse {
+  0%, 100% {
+    background-color: var(--color-red-50);
+    border-color: var(--color-red-200);
+  }
+  50% {
+    background-color: var(--color-red-100);
+    border-color: var(--color-red-300);
+  }
+}
+
+/* Logo hover effects */
 .logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
+  filter: drop-shadow(0 0 1rem #646cff);
+  transform: scale(1.05);
+  transition: all 0.3s ease;
 }
 
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafb);
+  filter: drop-shadow(0 0 1rem #61dafb);
+  transform: scale(1.05);
+  transition: all 0.3s ease;
 }
 
 .logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
+  filter: drop-shadow(0 0 1rem #24c8db);
+  transform: scale(1.05);
+  transition: all 0.3s ease;
+}
+
+/* Utility classes */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+.animate-heartbeat {
+  animation: heartbeat 2s ease-in-out infinite;
+}
+
+.emergency-alert {
+  animation: emergency-pulse 1.5s ease-in-out infinite;
+}
+
+.text-medical-gradient {
+  background: linear-gradient(135deg, var(--color-medical-600) 0%, var(--color-medical-500) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.backdrop-blur-medical {
+  backdrop-filter: blur(8px);
+  background-color: rgba(240, 253, 250, 0.8);
+}
+
+.medical-shadow {
+  box-shadow: 0 10px 15px -3px rgba(13, 148, 136, 0.1), 0 4px 6px -2px rgba(13, 148, 136, 0.05);
 }

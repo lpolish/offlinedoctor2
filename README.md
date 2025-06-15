@@ -60,6 +60,70 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 ## 🚀 Development
 
+### Quick Start
+
+```bash
+# Quick health check
+npm test
+
+# Start development server
+npm run tauri dev
+```
+
+### Developer Guide
+
+For comprehensive development instructions, run:
+```bash
+npm run guide
+```
+
+This displays the complete developer testing guide with all available commands and workflows.
+
+### Available Testing Scripts
+
+| Script | Command | Duration | Description |
+|--------|---------|----------|-------------|
+| **Health Check** | `npm test` | ~30s | Quick verification of project setup |
+| **Frontend Tests** | `npm run test:frontend` | ~1-2m | TypeScript, build, and bundle tests |
+| **Backend Tests** | `npm run test:backend` | ~1-2m | Rust compilation, linting, and tests |
+| **Development Server** | `npm run test:dev` | Manual | Start app for manual testing |
+| **API Testing** | `npm run test:api` | Manual | Test backend API endpoints |
+| **Full Build** | `npm run test:build` | ~5-10m | Complete Tauri app build (2GB+) |
+| **All Tests** | `npm run test:all` | Interactive | Run complete test suite |
+| **Developer Guide** | `npm run guide` | - | Show comprehensive testing guide |
+
+### Development Workflow
+
+1. **Daily Development:**
+   ```bash
+   npm test                    # Quick health check
+   # Make your changes
+   npm run test:frontend       # Test frontend changes
+   npm run test:backend        # Test backend changes (if Rust)
+   npm run test:dev           # Manual testing
+   ```
+
+2. **Before Commits:**
+   ```bash
+   npm run test:all           # Run all automated tests
+   npm run test:dev          # Manual verification
+   ```
+
+3. **Release Preparation:**
+   ```bash
+   npm run test:all          # Full test suite
+   npm run test:build        # Build verification
+   ```
+
+### Manual Testing Checklist
+
+When running development server (`npm run test:dev`):
+
+- **HomePage**: Welcome message, navigation, status indicators
+- **ChatPage**: Submit queries, view responses, emergency detection
+- **HistoryPage**: View past conversations, search functionality
+- **SettingsPage**: AI service management, model selection, health checks
+
 ### Start Development Server
 
 ```bash
@@ -75,6 +139,9 @@ npm run tauri dev
 
 # Or build Tauri app directly
 npm run tauri build
+
+# Or use test script for verification
+npm run test:build
 ```
 
 ## 🤖 Ollama Integration (Optional)
@@ -115,14 +182,44 @@ The application is self-configuring and stores all data locally. Settings can be
 
 ## 🧪 Testing
 
+### Quick Testing Commands
+
 ```bash
-# Run frontend tests
+# Health check (recommended first step)
 npm test
 
-# Run Rust tests
-cd src-tauri
-cargo test
+# Test frontend only
+npm run test:frontend
+
+# Test backend only  
+npm run test:backend
+
+# Manual testing with dev server
+npm run test:dev
+
+# Complete test suite
+npm run test:all
 ```
+
+### Automated Testing
+
+The project includes comprehensive automated testing:
+
+- **TypeScript Compilation**: Ensures all frontend code compiles correctly
+- **Rust Compilation**: Verifies backend builds without errors
+- **Linting**: Code quality checks for both frontend and backend
+- **Build Verification**: Confirms production builds work
+- **Bundle Analysis**: Checks asset sizes and dependencies
+
+### Manual Testing
+
+Use the development server to test:
+- UI responsiveness and navigation
+- AI query processing and responses
+- Settings and configuration
+- Data persistence and history
+
+For detailed testing instructions, run: `npm run guide`
 
 ## 📚 Usage
 

@@ -11,6 +11,7 @@ type Page = 'home' | 'chat' | 'history' | 'settings';
 
 export default function Layout() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { state } = useApp();
 
   const renderPage = () => {
@@ -29,25 +30,65 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-      <div className="flex-1 flex flex-col">
-        <Header />
-        <main className="flex-1 overflow-hidden">
-          {renderPage()}
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <Sidebar 
+        currentPage={currentPage} 
+        onNavigate={setCurrentPage}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+      
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} />
+        
+        <main className="flex-1 overflow-hidden bg-gray-50">
+          <div className="h-full animate-fade-in">
+            {renderPage()}
+          </div>
         </main>
         
-        {/* Status Bar */}
-        <div className="h-6 bg-gray-800 text-white text-xs flex items-center justify-between px-4">
-          <span>Offline Medical Assistant</span>
-          <div className="flex items-center space-x-4">
-            <span className={`flex items-center ${state.isBackendConnected ? 'text-green-400' : 'text-red-400'}`}>
-              <span className={`w-2 h-2 rounded-full mr-1 ${state.isBackendConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
-              {state.isBackendConnected ? 'Connected' : 'Disconnected'}
+        {/* Enhanced Status Bar */}
+        <div className="h-8 bg-gradient-to-r from-gray-800 to-gray-900 text-white text-xs flex items-center justify-between px-6 border-t border-gray-700">
+          <div className="flex items-center space-x-6">
+            <span className="flex items-center space-x-2">
+              <span className="text-medical-400">🏥</span>
+              <span className="font-medium">Offline Medical Assistant</span>
             </span>
+            
+            <div className="flex items-center space-x-1">
+              <span className={`status-dot ${state.isBackendConnected ? 'bg-success-400' : 'bg-danger-400'}`}></span>
+              <span className={state.isBackendConnected ? 'text-success-400' : 'text-danger-400'}>
+                {state.isBackendConnected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-6 text-gray-300">
             {state.systemHealth && (
-              <span>AI: {state.systemHealth.ai_service}</span>
+              <span className="flex items-center space-x-1">
+                <span>AI:</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  state.systemHealth.ai_service === 'healthy' 
+                    ? 'bg-success-500/20 text-success-400' 
+                    : 'bg-warning-500/20 text-warning-400'
+                }`}>
+                  {state.systemHealth.ai_service}
+                </span>
+              </span>
             )}
+            
+            {state.currentSession && (
+              <span className="flex items-center space-x-1">
+                <span>Session:</span>
+                <span className="font-mono text-xs bg-gray-700 px-2 py-0.5 rounded">
+                  {state.currentSession.session_id.slice(0, 8)}...
+                </span>
+              </span>
+            )}
+            
+            <span className="text-2xs text-gray-400">
+              {new Date().toLocaleTimeString()}
+            </span>
           </div>
         </div>
       </div>

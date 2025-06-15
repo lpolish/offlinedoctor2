@@ -1,7 +1,14 @@
+mod medical_ai;
+mod ollama_manager;
+
+use medical_ai::MedicalAI;
+use ollama_manager::{OllamaConfig, OllamaManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
+use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 
 // Data structures for medical assistance
@@ -30,6 +37,7 @@ pub struct MedicalGuidance {
     pub severity: Option<String>,
     pub recommendations: Option<Vec<String>>,
     pub emergency_action: Option<String>,
+    pub follow_up: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -68,7 +76,17 @@ pub struct AIModelInfo {
 pub struct AppState {
     pub sessions: Mutex<HashMap<String, SessionInfo>>,
     pub conversations: Mutex<Vec<MedicalResponse>>,
-    pub ollama_client: Mutex<Option<reqwest::Client>>,
+    pub medical_ai: Arc<AsyncMutex<Option<MedicalAI>>>,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        Self {
+            sessions: Mutex::new(HashMap::new()),
+            conversations: Mutex::new(Vec::new()),
+            medical_ai: Arc::new(AsyncMutex::new(None)),
+        }
+    }
 }
 
 // Tauri Commands
@@ -99,41 +117,122 @@ async fn submit_medical_query(
         .session_id
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    // Simulate AI processing (in a real implementation, this would call Ollama)
-    let response = generate_medical_response(&query.query, &query.query_type).await?;
+    // Get the medical AI instance
+    let medical_ai_guard = state.medical_ai.lock().await;
 
-    let medical_response = MedicalResponse {
-        response,
-        confidence: 0.85, // Simulated confidence score
-        session_id: session_id.clone(),
-        conversation_id: Some(1),
-        query_type: query.query_type.clone(),
-        timestamp: chrono::Utc::now().to_rfc3339(),
-        emergency_detected: detect_emergency(&query.query),
-        medical_guidance: generate_medical_guidance(&query.query, &query.query_type),
-        related_conditions: None,
-    };
+    if let Some(ref medical_ai) = *medical_ai_guard {
+        // Create a medical query for our AI
+        let ai_query = medical_ai::MedicalQuery {
+            query: query.query.clone(),
+            query_type: query.query_type.clone(),
+            session_id: session_id.clone(),
+        };
 
-    // Store the conversation
-    let mut conversations = state.conversations.lock().unwrap();
-    conversations.push(medical_response.clone());
+        // Process the query with our AI
+        match medical_ai.process_medical_query(&ai_query).await {
+            Ok(ai_response) => {
+                let medical_response = MedicalResponse {
+                    response: ai_response.response,
+                    confidence: ai_response.confidence,
+                    session_id: session_id.clone(),
+                    conversation_id: Some(1),
+                    query_type: query.query_type.clone(),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    emergency_detected: Some(ai_response.emergency_detected),
+                    medical_guidance: ai_response.medical_guidance.map(|g| MedicalGuidance {
+                        severity: g.severity,
+                        recommendations: Some(g.recommendations),
+                        emergency_action: g.emergency_action,
+                        follow_up: g.follow_up,
+                    }),
+                    related_conditions: None,
+                };
 
-    Ok(medical_response)
+                // Store the conversation
+                drop(medical_ai_guard); // Release the lock before acquiring another
+                let mut conversations = state.conversations.lock().unwrap();
+                conversations.push(medical_response.clone());
+
+                Ok(medical_response)
+            }
+            Err(e) => {
+                eprintln!("AI processing error: {}", e);
+                // Fallback to basic response
+                let fallback_response = generate_fallback_response(&query.query, &query.query_type);
+
+                let medical_response = MedicalResponse {
+                    response: fallback_response,
+                    confidence: 0.5,
+                    session_id: session_id.clone(),
+                    conversation_id: Some(1),
+                    query_type: query.query_type.clone(),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    emergency_detected: Some(false),
+                    medical_guidance: Some(MedicalGuidance {
+                        severity: Some("low".to_string()),
+                        recommendations: Some(vec!["Please consult with a healthcare professional for proper medical advice.".to_string()]),
+                        emergency_action: None,
+                        follow_up: Some("Consider scheduling an appointment with your doctor.".to_string()),
+                    }),
+                    related_conditions: None,
+                };
+
+                drop(medical_ai_guard);
+                let mut conversations = state.conversations.lock().unwrap();
+                conversations.push(medical_response.clone());
+
+                Ok(medical_response)
+            }
+        }
+    } else {
+        // AI not initialized, use fallback
+        let fallback_response = generate_fallback_response(&query.query, &query.query_type);
+
+        let medical_response = MedicalResponse {
+            response: fallback_response,
+            confidence: 0.3,
+            session_id: session_id.clone(),
+            conversation_id: Some(1),
+            query_type: query.query_type.clone(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            emergency_detected: Some(false),
+            medical_guidance: Some(MedicalGuidance {
+                severity: Some("low".to_string()),
+                recommendations: Some(vec![
+                    "AI service is not available. Please consult with a healthcare professional."
+                        .to_string(),
+                ]),
+                emergency_action: None,
+                follow_up: None,
+            }),
+            related_conditions: None,
+        };
+
+        let mut conversations = state.conversations.lock().unwrap();
+        conversations.push(medical_response.clone());
+
+        Ok(medical_response)
+    }
 }
 
 #[tauri::command]
-async fn get_system_health(_state: State<'_, AppState>) -> Result<SystemHealth, String> {
-    // Check Ollama connection
-    let ai_status = check_ollama_connection().await;
+async fn get_system_health(state: State<'_, AppState>) -> Result<SystemHealth, String> {
+    // Check AI service status
+    let medical_ai_guard = state.medical_ai.lock().await;
+    let ai_status = if let Some(ref medical_ai) = *medical_ai_guard {
+        match medical_ai.health_check().await {
+            Ok(true) => "healthy",
+            Ok(false) => "disconnected",
+            Err(_) => "error",
+        }
+    } else {
+        "not_initialized"
+    };
 
     Ok(SystemHealth {
         status: "healthy".to_string(),
         database: "healthy".to_string(),
-        ai_service: if ai_status {
-            "healthy".to_string()
-        } else {
-            "disconnected".to_string()
-        },
+        ai_service: ai_status.to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
     })
 }
@@ -154,17 +253,92 @@ async fn get_session_history(
 }
 
 #[tauri::command]
-async fn get_ai_models() -> Result<AIModelInfo, String> {
-    Ok(AIModelInfo {
-        available: check_ollama_connection().await,
-        models: vec!["llama2:7b".to_string(), "llama2:13b".to_string()],
-        default_model: "llama2:7b".to_string(),
-        medical_model: "llama2:7b".to_string(),
-        ollama_url: "http://localhost:11434".to_string(),
-    })
+async fn initialize_ai_service(app_handle: tauri::AppHandle) -> Result<String, String> {
+    start_ai_service_internal(app_handle).await
+}
+
+async fn start_ai_service_internal(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let state = app_handle.state::<AppState>();
+    let mut medical_ai_guard = state.medical_ai.lock().await;
+
+    if medical_ai_guard.is_some() {
+        return Ok("AI service already initialized".to_string());
+    }
+
+    // Create Ollama manager with default config
+    let config = OllamaConfig::default();
+    let ollama_manager = OllamaManager::new(config);
+
+    // Try to start embedded Ollama first
+    match ollama_manager.start_embedded(&app_handle).await {
+        Ok(_) => {
+            println!("Embedded Ollama started successfully");
+        }
+        Err(e) => {
+            println!("Failed to start embedded Ollama, trying external: {}", e);
+            // Try to connect to external Ollama
+            match ollama_manager.health_check().await {
+                Ok(true) => {
+                    println!("Connected to external Ollama");
+                }
+                Ok(false) | Err(_) => {
+                    return Err("No Ollama instance available (embedded or external)".to_string());
+                }
+            }
+        }
+    }
+
+    // Ensure the model is ready
+    match ollama_manager.ensure_model("tinyllama:latest").await {
+        Ok(_) => {
+            println!("Model ready: tinyllama:latest");
+        }
+        Err(e) => {
+            println!("Warning: Could not ensure model availability: {}", e);
+            // Continue anyway, might work with existing models
+        }
+    }
+
+    // Create medical AI instance
+    let medical_ai = MedicalAI::new(ollama_manager);
+    *medical_ai_guard = Some(medical_ai);
+
+    Ok("AI service initialized successfully".to_string())
+}
+
+#[tauri::command]
+async fn stop_ai_service(state: State<'_, AppState>) -> Result<String, String> {
+    let mut medical_ai_guard = state.medical_ai.lock().await;
+    *medical_ai_guard = None;
+    Ok("AI service stopped".to_string())
+}
+
+#[tauri::command]
+async fn get_ai_models(state: State<'_, AppState>) -> Result<AIModelInfo, String> {
+    let medical_ai_guard = state.medical_ai.lock().await;
+
+    if let Some(ref medical_ai) = *medical_ai_guard {
+        let available = medical_ai.health_check().await.unwrap_or(false);
+        Ok(AIModelInfo {
+            available,
+            models: vec!["tinyllama:latest".to_string(), "llama2:latest".to_string()],
+            default_model: "tinyllama:latest".to_string(),
+            medical_model: "tinyllama:latest".to_string(),
+            ollama_url: "http://127.0.0.1:11434".to_string(),
+        })
+    } else {
+        Ok(AIModelInfo {
+            available: false,
+            models: vec![],
+            default_model: "".to_string(),
+            medical_model: "".to_string(),
+            ollama_url: "http://127.0.0.1:11434".to_string(),
+        })
+    }
 }
 
 // Helper functions
+#[allow(dead_code)]
 async fn generate_medical_response(query: &str, query_type: &str) -> Result<String, String> {
     // Try to connect to Ollama first
     if let Ok(response) = call_ollama_api(query).await {
@@ -180,6 +354,7 @@ async fn generate_medical_response(query: &str, query_type: &str) -> Result<Stri
     }
 }
 
+#[allow(dead_code)]
 async fn call_ollama_api(query: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
     let ollama_url = "http://localhost:11434/api/generate";
@@ -211,6 +386,7 @@ async fn call_ollama_api(query: &str) -> Result<String, String> {
     }
 }
 
+#[allow(dead_code)]
 async fn check_ollama_connection() -> bool {
     let client = reqwest::Client::new();
     match client.get("http://localhost:11434/api/tags").send().await {
@@ -275,6 +451,7 @@ fn generate_general_response(query: &str) -> String {
     )
 }
 
+#[allow(dead_code)]
 fn detect_emergency(query: &str) -> Option<bool> {
     let emergency_keywords = [
         "chest pain",
@@ -297,6 +474,7 @@ fn detect_emergency(query: &str) -> Option<bool> {
     None
 }
 
+#[allow(dead_code)]
 fn generate_medical_guidance(query: &str, query_type: &str) -> Option<MedicalGuidance> {
     if detect_emergency(query).unwrap_or(false) {
         return Some(MedicalGuidance {
@@ -307,6 +485,7 @@ fn generate_medical_guidance(query: &str, query_type: &str) -> Option<MedicalGui
                 "Do not delay professional medical care".to_string(),
             ]),
             emergency_action: Some("Contact emergency services immediately".to_string()),
+            follow_up: Some("Follow emergency protocols".to_string()),
         });
     }
 
@@ -319,6 +498,7 @@ fn generate_medical_guidance(query: &str, query_type: &str) -> Option<MedicalGui
                 "Keep a symptom diary".to_string(),
             ]),
             emergency_action: None,
+            follow_up: Some("Schedule follow-up if symptoms worsen".to_string()),
         }),
         _ => Some(MedicalGuidance {
             severity: Some("low".to_string()),
@@ -327,7 +507,17 @@ fn generate_medical_guidance(query: &str, query_type: &str) -> Option<MedicalGui
                 "Verify information with reliable medical sources".to_string(),
             ]),
             emergency_action: None,
+            follow_up: Some("Regular medical checkups recommended".to_string()),
         }),
+    }
+}
+
+fn generate_fallback_response(query: &str, query_type: &str) -> String {
+    match query_type {
+        "symptoms" => generate_symptom_response(query),
+        "drug_interaction" => generate_drug_interaction_response(query),
+        "medical_term" => generate_medical_term_response(query),
+        _ => generate_general_response(query),
     }
 }
 
@@ -335,14 +525,28 @@ fn generate_medical_guidance(query: &str, query_type: &str) -> Option<MedicalGui
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(AppState::default())
+        .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             create_session,
             submit_medical_query,
             get_system_health,
             get_session_history,
+            initialize_ai_service,
+            stop_ai_service,
             get_ai_models
         ])
+        .setup(|app| {
+            // Initialize AI service on startup
+            let app_handle = app.handle().clone();
+
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = start_ai_service_internal(app_handle).await {
+                    eprintln!("Failed to initialize AI service on startup: {}", e);
+                }
+            });
+
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -183,6 +183,30 @@ class ApiService {
   }
 }
 
+/**
+ * Initialize the AI service (Ollama)
+ */
+export async function initializeAIService(): Promise<string> {
+  try {
+    return await invoke<string>('initialize_ai_service');
+  } catch (error) {
+    console.error('Failed to initialize AI service:', error);
+    throw new Error('Failed to initialize AI service');
+  }
+}
+
+/**
+ * Stop the AI service
+ */
+export async function stopAIService(): Promise<string> {
+  try {
+    return await invoke<string>('stop_ai_service');
+  } catch (error) {
+    console.error('Failed to stop AI service:', error);
+    throw new Error('Failed to stop AI service');
+  }
+}
+
 // Export singleton instance
 export const apiService = new ApiService();
 export default apiService;
