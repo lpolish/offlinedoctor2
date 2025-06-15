@@ -95,11 +95,13 @@ async fn submit_medical_query(
     query: MedicalQuery,
     state: State<'_, AppState>,
 ) -> Result<MedicalResponse, String> {
-    let session_id = query.session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
-    
+    let session_id = query
+        .session_id
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
     // Simulate AI processing (in a real implementation, this would call Ollama)
     let response = generate_medical_response(&query.query, &query.query_type).await?;
-    
+
     let medical_response = MedicalResponse {
         response,
         confidence: 0.85, // Simulated confidence score
@@ -123,11 +125,15 @@ async fn submit_medical_query(
 async fn get_system_health(_state: State<'_, AppState>) -> Result<SystemHealth, String> {
     // Check Ollama connection
     let ai_status = check_ollama_connection().await;
-    
+
     Ok(SystemHealth {
         status: "healthy".to_string(),
         database: "healthy".to_string(),
-        ai_service: if ai_status { "healthy".to_string() } else { "disconnected".to_string() },
+        ai_service: if ai_status {
+            "healthy".to_string()
+        } else {
+            "disconnected".to_string()
+        },
         timestamp: chrono::Utc::now().to_rfc3339(),
     })
 }
@@ -143,7 +149,7 @@ async fn get_session_history(
         .filter(|conv| conv.session_id == session_id)
         .cloned()
         .collect();
-    
+
     Ok(session_conversations)
 }
 
@@ -164,7 +170,7 @@ async fn generate_medical_response(query: &str, query_type: &str) -> Result<Stri
     if let Ok(response) = call_ollama_api(query).await {
         return Ok(response);
     }
-    
+
     // Fallback to simulated responses if Ollama is not available
     match query_type {
         "symptoms" => Ok(generate_symptom_response(query)),
@@ -177,7 +183,7 @@ async fn generate_medical_response(query: &str, query_type: &str) -> Result<Stri
 async fn call_ollama_api(query: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
     let ollama_url = "http://localhost:11434/api/generate";
-    
+
     let payload = serde_json::json!({
         "model": "llama2:7b",
         "prompt": format!("You are a medical AI assistant. Please provide helpful medical information for the following query. Always include appropriate disclaimers about seeking professional medical advice when necessary.\n\nQuery: {}", query),
@@ -271,10 +277,17 @@ fn generate_general_response(query: &str) -> String {
 
 fn detect_emergency(query: &str) -> Option<bool> {
     let emergency_keywords = [
-        "chest pain", "heart attack", "stroke", "seizure", "unconscious", 
-        "bleeding heavily", "can't breathe", "severe pain", "emergency"
+        "chest pain",
+        "heart attack",
+        "stroke",
+        "seizure",
+        "unconscious",
+        "bleeding heavily",
+        "can't breathe",
+        "severe pain",
+        "emergency",
     ];
-    
+
     let query_lower = query.to_lowercase();
     for keyword in &emergency_keywords {
         if query_lower.contains(keyword) {
