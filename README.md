@@ -1,6 +1,6 @@
 # Offline Doctor 2 - Medical AI Assistant
 
-A privacy-focused, offline medical AI assistant built with Tauri, React, and Python. This application provides medical consultation and assistance while ensuring complete data privacy by running entirely offline.
+A privacy-focused, offline medical AI assistant built with Tauri and React. This application provides medical consultation and assistance while ensuring complete data privacy by running entirely offline as a self-contained desktop application.
 
 ## 🚀 Features
 
@@ -10,21 +10,22 @@ A privacy-focused, offline medical AI assistant built with Tauri, React, and Pyt
 - **Medical History**: Track and review past consultations
 - **Cross-Platform**: Desktop application for Windows, macOS, and Linux
 - **Modern UI**: Clean, responsive interface built with React and TailwindCSS
+- **Ollama Integration**: Enhanced AI responses when Ollama is available
+- **Self-Contained**: No separate backend services required
 
 ## 🏗️ Architecture
 
 - **Frontend**: React + TypeScript + TailwindCSS
-- **Backend**: Python FastAPI for medical AI processing
+- **Backend**: Integrated Tauri Rust commands
 - **Desktop**: Tauri framework for cross-platform desktop app
-- **Database**: SQLite for local data storage
-- **Containerization**: Docker support for easy deployment
+- **Database**: SQLite for local data storage (managed by Tauri)
+- **AI Integration**: Ollama support with intelligent fallbacks
 
 ## 📋 Prerequisites
 
 - **Node.js** (v18 or higher)
-- **Python** (v3.8 or higher)
 - **Rust** (latest stable)
-- **Docker** (optional, for containerized deployment)
+- **Ollama** (optional, for enhanced AI responses)
 
 ## 🛠️ Installation
 
@@ -36,8 +37,8 @@ git clone <your-repo-url>
 cd offlinedoctor2
 
 # Run setup script
-chmod +x setup-backend.sh
-./setup-backend.sh
+chmod +x scripts/setup-dev.sh
+./scripts/setup-dev.sh
 ```
 
 ### Manual Setup
@@ -47,17 +48,14 @@ chmod +x setup-backend.sh
 npm install
 ```
 
-2. **Set up Python backend:**
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-3. **Install Tauri CLI:**
+2. **Install Tauri CLI:**
 ```bash
 npm install -g @tauri-apps/cli
+```
+
+3. **Install Rust** (if not already installed):
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 ## 🚀 Development
@@ -65,13 +63,7 @@ npm install -g @tauri-apps/cli
 ### Start Development Server
 
 ```bash
-# Terminal 1: Start backend
-./scripts/start-backend.sh
-
-# Terminal 2: Start frontend
-npm run dev
-
-# Terminal 3: Start Tauri (optional for desktop app)
+# Start Tauri development server (includes frontend hot reload)
 npm run tauri dev
 ```
 
@@ -81,17 +73,26 @@ npm run tauri dev
 # Build the application
 ./scripts/build.sh
 
-# Or build Tauri app
+# Or build Tauri app directly
 npm run tauri build
 ```
 
-## 🐳 Docker Deployment
+## 🤖 Ollama Integration (Optional)
+
+For enhanced AI responses, install Ollama:
 
 ```bash
-# Build and run with Docker Compose
-cd docker
-docker-compose up --build
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a medical-focused model
+ollama pull llama2:7b
+
+# Start Ollama service
+ollama serve
 ```
+
+The application will automatically detect and use Ollama when available, falling back to built-in responses otherwise.
 
 ## 📁 Project Structure
 
@@ -100,29 +101,17 @@ offlinedoctor2/
 ├── src/                    # React frontend
 │   ├── components/         # UI components
 │   ├── pages/             # Application pages
-│   └── services/          # API services
+│   └── services/          # API services (Tauri commands)
 ├── src-tauri/             # Tauri desktop app
-├── backend/               # Python FastAPI backend
-│   ├── app/
-│   │   ├── api/          # API routes
-│   │   ├── database/     # Database models
-│   │   └── services/     # Business logic
-├── docker/                # Docker configuration
+│   ├── src/               # Rust backend logic
+│   └── Cargo.toml         # Rust dependencies
 ├── scripts/               # Build and setup scripts
 └── docs/                  # Documentation
 ```
 
 ## 🔧 Configuration
 
-### Environment Variables
-
-Create a `.env` file in the backend directory:
-
-```env
-DATABASE_URL=sqlite:///./medical_assistant.db
-AI_MODEL_PATH=./models/medical_model
-LOG_LEVEL=INFO
-```
+The application is self-configuring and stores all data locally. Settings can be adjusted through the UI.
 
 ## 🧪 Testing
 
@@ -130,9 +119,9 @@ LOG_LEVEL=INFO
 # Run frontend tests
 npm test
 
-# Run backend tests
-cd backend
-python -m pytest
+# Run Rust tests
+cd src-tauri
+cargo test
 ```
 
 ## 📚 Usage
@@ -145,9 +134,10 @@ python -m pytest
 ## 🔒 Privacy & Security
 
 - **No Internet Required**: All processing happens locally
-- **Data Encryption**: Local database is encrypted
+- **Local Data Storage**: SQLite database managed by Tauri
 - **No Telemetry**: No data is sent to external servers
 - **HIPAA Considerations**: Designed with medical data privacy in mind
+- **Offline AI**: Optional Ollama integration for enhanced responses while maintaining privacy
 
 ## 🤝 Contributing
 

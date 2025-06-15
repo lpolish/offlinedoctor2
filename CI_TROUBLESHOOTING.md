@@ -109,20 +109,19 @@ python -m pytest
 
 ### Local Testing
 ```bash
-# Test Python backend
-cd backend
-pip install -r requirements.txt
-python -m pytest
-
 # Test frontend
 npm ci
 npm run build
 
-# Test Rust
+# Test Tauri/Rust
 cd src-tauri
 cargo test
 cargo clippy
 cargo fmt --check
+cargo check
+
+# Run development server
+npm run tauri dev
 ```
 
 ### CI/CD Testing

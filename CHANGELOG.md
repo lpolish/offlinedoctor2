@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Complete offline medical AI assistant application
 - React + TypeScript frontend with Tauri desktop wrapper
-- FastAPI backend with Ollama AI integration
+- Integrated Tauri Rust backend with Ollama AI integration
 - SQLite database for local data storage
 - Privacy-first architecture with no external API calls
 - Real-time chat interface with medical AI
@@ -44,9 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Architecture
 - React 18 with TypeScript
 - Tauri 2.0 for desktop application
-- FastAPI Python backend
+- Integrated Rust backend commands
 - Ollama for local AI inference
-- SQLite for data persistence
+- SQLite for data persistence (Tauri-managed)
 - Tailwind CSS for responsive UI
 - GitHub Actions for CI/CD
 - Cross-platform binary distribution
