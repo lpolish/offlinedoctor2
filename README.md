@@ -27,7 +27,6 @@ A privacy-focused, offline medical AI assistant built with Tauri and React. This
 
 - **Node.js** (v18 or higher)
 - **Rust** (latest stable)
-- **Ollama** (optional, for enhanced AI responses)
 
 ## 🛠️ Installation
 
