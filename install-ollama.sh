@@ -76,12 +76,29 @@ install_ollama() {
   log "📥 Installing Ollama..."
   
   case "$OS" in
-    "linux"|"darwin")
+    "linux")
       # Use official installer
       if [ "$QUIET_MODE" = true ]; then
         curl -fsSL https://ollama.ai/install.sh | sh > /dev/null 2>&1
       else
         curl -fsSL https://ollama.ai/install.sh | sh
+      fi
+      ;;
+    "darwin")
+      # macOS installation
+      if [ "$AUTO_MODE" = true ]; then
+        log "🍎 macOS detected in CI mode - skipping Ollama installation"
+        log "   Ollama installation will be handled by the build environment"
+        return 0
+      else
+        log "🍎 For macOS, please download Ollama manually from https://ollama.ai/download"
+        log "   Or install via Homebrew: brew install ollama"
+        read -p "Continue without installing? [Y/n]: " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+          return 0
+        fi
+        exit 1
       fi
       ;;
     "windows")
@@ -247,6 +264,14 @@ EOF
 main() {
   if [ "$AUTO_MODE" = true ]; then
     log "🤖 Running in automatic mode..."
+    
+    # In CI environments (non-Linux), skip most setup
+    if [ "$OS" != "linux" ]; then
+      log "🔄 Non-Linux environment detected in auto mode"
+      log "✅ Skipping Ollama setup for CI compatibility"
+      log "📋 Build environment will handle dependencies"
+      return 0
+    fi
   fi
   
   log ""

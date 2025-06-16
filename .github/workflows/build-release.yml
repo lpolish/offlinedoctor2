@@ -61,6 +61,9 @@ jobs:
         shell: bash
         run: |
           echo "Installing frontend dependencies..."
+          # Set CI environment variable to skip Ollama setup
+          export CI=true
+          export GITHUB_ACTIONS=true
           npm ci || {
             echo "npm ci failed, trying npm install..."
             npm install || {
@@ -76,12 +79,15 @@ jobs:
         shell: bash
         run: |
           echo "Building frontend for release..."
+          # Ensure CI environment is set
+          export CI=true
+          export GITHUB_ACTIONS=true
           npm run build || {
             echo "Frontend build failed"
             echo "Node version: $(node --version)"
             echo "NPM version: $(npm --version)"
             echo "Environment variables:"
-            env | grep -E "NODE_|NPM_" || echo "No Node/NPM env vars"
+            env | grep -E "NODE_|NPM_|CI" || echo "No Node/NPM/CI env vars"
             exit 1
           }
           echo "Frontend build successful"

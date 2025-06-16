@@ -181,18 +181,26 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.version.outputs.new-version }}"
           
-          # Ensure we're on the correct branch and have latest changes
+          # Check if tag already exists first
+          if git tag -l | grep -q "^$NEW_VERSION$"; then
+            echo "Tag $NEW_VERSION already exists, skipping..."
+            exit 0
+          fi
+          
+          # Ensure we're on the correct branch
           git fetch origin main
           git checkout main
-          git reset --hard origin/main
+          
+          # Add all changed files
+          git add -A
           
           # Create and push tag
           if git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"; then
             echo "Tag $NEW_VERSION created successfully"
             
             # Push changes and tag separately to avoid conflicts
-            if git push origin main; then
-              echo "Successfully pushed to main"
+            if git push origin main || echo "No changes to push to main"; then
+              echo "Main branch updated"
               if git push origin "$NEW_VERSION"; then
                 echo "Successfully pushed tag $NEW_VERSION"
               else
@@ -205,11 +213,5 @@ jobs:
             fi
           else
             echo "Failed to create tag $NEW_VERSION"
-            echo "Checking if tag already exists..."
-            if git tag -l | grep -q "^$NEW_VERSION$"; then
-              echo "Tag $NEW_VERSION already exists, skipping..."
-              exit 0
-            else
-              exit 1
-            fi
+            exit 1
           fi

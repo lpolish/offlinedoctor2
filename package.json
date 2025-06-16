@@ -12,7 +12,7 @@
     "healthcare"
   ],
   "scripts": {
-    "postinstall": "bash install-ollama.sh --auto",
+    "postinstall": "bash install-ollama.sh --auto --quiet || echo 'Ollama setup skipped in CI environment'",
     "setup": "bash install-ollama.sh",
     "setup:full": "bash install-ollama.sh --full",
     "dev": "npm run ensure-ollama && vite",

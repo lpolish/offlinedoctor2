@@ -5,6 +5,13 @@
 
 set -e
 
+# Check if we're in a CI environment
+if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ "$OSTYPE" != "linux-gnu" ]; then
+    echo "🔄 CI environment detected - skipping Ollama checks"
+    echo "✅ Ollama will be handled by the build environment"
+    exit 0
+fi
+
 # Check if Ollama is installed
 if ! command -v ollama &> /dev/null; then
     echo "❌ Ollama not found. Running setup..."
