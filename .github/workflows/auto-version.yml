@@ -8,13 +8,19 @@ on:
       - 'CHANGELOG.md'
       - '.github/**'
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  repository-projects: write
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   auto-version:
     runs-on: ubuntu-22.04
-    if: "!contains(github.event.head_commit.message, '[skip-version]')"
+    if: '!contains(github.event.head_commit.message, ''[skip-version]'')'
     
     outputs:
       new-version: ${{ steps.version.outputs.new-version }}
