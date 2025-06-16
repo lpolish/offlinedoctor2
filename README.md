@@ -1,5 +1,7 @@
 # Offline Doctor 2 - Medical AI Assistant
 
+[![Build and Release](https://github.com/lpolish/offlinedoctor2/actions/workflows/build-release.yml/badge.svg)](https://github.com/lpolish/offlinedoctor2/actions/workflows/build-release.yml)
+
 A privacy-focused, offline medical AI assistant built with Tauri and React. This application provides medical consultation and assistance while ensuring complete data privacy by running entirely offline as a self-contained desktop application.
 
 ## 🚀 Features
