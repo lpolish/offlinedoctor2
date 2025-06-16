@@ -3,12 +3,15 @@
  * Handles connection, error recovery, model management, and best practices
  */
 
+import { getOllamaPlatformConfig, getPlatformInfo } from '../utils/platform';
+
 interface OllamaConfig {
   baseUrl: string;
   model: string;
   timeout: number;
   retries: number;
   healthCheckInterval: number;
+  alternativeUrls: string[];
 }
 
 interface OllamaError {
@@ -23,14 +26,23 @@ export class OllamaService {
   private connectionListeners: Array<(connected: boolean) => void> = [];
 
   constructor(config: Partial<OllamaConfig> = {}) {
+    // Get platform-specific configuration
+    const platformConfig = getOllamaPlatformConfig();
+    const platformInfo = getPlatformInfo();
+    
     this.config = {
-      baseUrl: 'http://localhost:11434',
+      baseUrl: platformConfig.baseUrl,
       model: 'tinyllama:latest',
-      timeout: 30000, // 30 seconds
+      timeout: platformConfig.timeout,
       retries: 3,
-      healthCheckInterval: 30000, // 30 seconds
+      healthCheckInterval: platformConfig.healthCheckInterval,
+      alternativeUrls: platformConfig.alternativeUrls,
       ...config
     };
+
+    console.log(`🔧 Initialized Ollama service for ${platformInfo.isWindows ? 'Windows' : platformInfo.isLinux ? 'Linux' : platformInfo.isMac ? 'macOS' : 'Unknown'} platform`);
+    console.log(`🔧 Base URL: ${this.config.baseUrl}`);
+    console.log(`🔧 Alternative URLs: ${this.config.alternativeUrls.join(', ')}`);
 
     // Initialize connection status
     this.startHealthCheck();
@@ -94,65 +106,110 @@ export class OllamaService {
    * Attempt to auto-recover Ollama service
    */
   async attemptAutoRecovery(): Promise<boolean> {
-    try {
-      // First, try to start Ollama service
-      const response = await fetch(`${this.config.baseUrl}/api/version`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000)
-      });
+    console.log('🔄 Attempting Ollama auto-recovery...');
+    
+    // Try each URL with version endpoint (lighter than tags)
+    const urlsToTry = [this.config.baseUrl, ...this.config.alternativeUrls];
+    
+    for (const url of urlsToTry) {
+      try {
+        const response = await fetch(`${url}/api/version`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(8000),
+          mode: 'cors',
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
 
-      if (response.ok) {
-        this.notifyConnectionChange(true);
-        return true;
+        if (response.ok) {
+          // Update to working URL
+          this.config.baseUrl = url;
+          console.log(`✅ Auto-recovery successful: ${url}`);
+          this.notifyConnectionChange(true);
+          return true;
+        }
+      } catch (error) {
+        console.warn(`❌ Auto-recovery failed for ${url}:`, error instanceof Error ? error.message : 'Unknown error');
+        continue;
       }
-
-      // If service is not responding, attempt to start it
-      // This would typically be done through a system call or API
-      console.warn('Ollama service not responding. Manual restart may be required.');
-      return false;
-    } catch (error) {
-      console.error('Auto-recovery failed:', error);
-      return false;
     }
+
+    // If direct connection fails, try to detect if Ollama is running on alternative ports
+    const alternativePorts = [11434, 11435, 11436];
+    for (const port of alternativePorts) {
+      const testUrl = `http://localhost:${port}`;
+      try {
+        const response = await fetch(`${testUrl}/api/version`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000),
+          mode: 'cors'
+        });
+
+        if (response.ok) {
+          this.config.baseUrl = testUrl;
+          console.log(`✅ Found Ollama on alternative port: ${port}`);
+          this.notifyConnectionChange(true);
+          return true;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    console.warn('❌ Auto-recovery failed: Ollama service not responding on any known endpoint');
+    return false;
   }
 
   /**
-   * Check if Ollama service is healthy
+   * Check if Ollama service is healthy with multiple URL attempts
    */
   async healthCheck(): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for health check
+    const urlsToTry = [this.config.baseUrl, ...this.config.alternativeUrls];
+    
+    for (const url of urlsToTry) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for health check
 
-      const response = await fetch(`${this.config.baseUrl}/api/tags`, {
-        signal: controller.signal,
-        method: 'GET'
-      });
+        const response = await fetch(`${url}/api/tags`, {
+          signal: controller.signal,
+          method: 'GET',
+          mode: 'cors',
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
 
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        const data = await response.json();
-        const isHealthy = Array.isArray(data.models);
-        this.notifyConnectionChange(isHealthy);
-        return isHealthy;
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          const isHealthy = Array.isArray(data.models);
+          if (isHealthy) {
+            // Update baseUrl to the working one
+            this.config.baseUrl = url;
+            this.notifyConnectionChange(true);
+            console.log(`✅ Connected to Ollama at ${url}`);
+            return true;
+          }
+        }
+      } catch (error) {
+        console.warn(`❌ Failed to connect to Ollama at ${url}:`, error instanceof Error ? error.message : 'Unknown error');
+        continue;
       }
-      
-      // Service responded but not healthy, attempt recovery
+    }
+    
+    // All URLs failed, attempt recovery only if we were previously connected
+    if (this.isConnected) {
+      console.log('🔄 Attempting auto-recovery...');
       const recovered = await this.attemptAutoRecovery();
       this.notifyConnectionChange(recovered);
       return recovered;
-    } catch (error) {
-      // If this is the first failed health check, try auto-recovery
-      if (this.isConnected) {
-        const recovered = await this.attemptAutoRecovery();
-        this.notifyConnectionChange(recovered);
-        return recovered;
-      }
-      
-      this.notifyConnectionChange(false);
-      return false;
     }
+    
+    this.notifyConnectionChange(false);
+    return false;
   }
 
   /**
@@ -300,8 +357,10 @@ Answer the user's question directly and helpfully.`;
         const response = await fetch(`${this.config.baseUrl}${endpoint}`, {
           ...options,
           signal: controller.signal,
+          mode: 'cors',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             ...options.headers
           }
         });
@@ -328,6 +387,8 @@ Answer the user's question directly and helpfully.`;
         if (attempt === this.config.retries || !this.isRetryableError(error as Error)) {
           break;
         }
+
+        console.warn(`⚠️ Request attempt ${attempt}/${this.config.retries} failed:`, lastError.message);
 
         // Wait before retrying (exponential backoff)
         await this.delay(Math.pow(2, attempt - 1) * 1000);

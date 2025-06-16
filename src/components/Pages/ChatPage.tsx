@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import ollamaService from '../../services/ollama.service';
+import transformersService from '../../services/transformers.service';
+import { debugOllamaConnection } from '../../utils/debug';
 
 interface ConversationItem {
   query: string;
@@ -18,6 +19,8 @@ export default function ChatPage() {
   const [isAIConnected, setIsAIConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -30,20 +33,33 @@ export default function ChatPage() {
 
   // Set up connection monitoring
   useEffect(() => {
-    const unsubscribe = ollamaService.onConnectionChange((connected) => {
+    const unsubscribe = transformersService.onConnectionChange((connected: boolean) => {
+      console.log(`🔗 AI connection status changed: ${connected ? 'Connected' : 'Disconnected'}`);
       setIsAIConnected(connected);
       if (connected) {
         setConnectionError(null);
       }
     });
 
-    // Initial connection check
-    ollamaService.healthCheck().then(connected => {
-      setIsAIConnected(connected);
-      if (!connected) {
-        setConnectionError('Cannot connect to Ollama. Please ensure it is running.');
+    // Initial connection check with better error handling
+    const performInitialCheck = async () => {
+      try {
+        console.log('🔍 Performing initial AI health check...');
+        const connected = await transformersService.healthCheck();
+        setIsAIConnected(connected);
+        if (!connected) {
+          setConnectionError('AI models are initializing. Please wait...');
+        } else {
+          console.log('✅ Initial health check successful');
+        }
+      } catch (error) {
+        console.error('❌ Initial health check failed:', error);
+        setIsAIConnected(false);
+        setConnectionError(`Initial connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-    });
+    };
+    
+    performInitialCheck();
 
     return unsubscribe;
   }, []);
@@ -67,9 +83,16 @@ export default function ChatPage() {
     setConnectionError(null);
 
     try {
+      console.log('🤖 Sending message to AI:', message);
       const startTime = Date.now();
-      const result = await ollamaService.generateMedicalResponse(message);
+      const result = await transformersService.generateMedicalResponse(message);
       const duration = Date.now() - startTime;
+      
+      console.log('✅ Received response from AI:', {
+        model: result.metadata.model,
+        duration: duration + 'ms',
+        responseLength: result.response.length
+      });
       
       setConversation(prev => 
         prev.map((item, index) => 
@@ -87,15 +110,28 @@ export default function ChatPage() {
         )
       );
     } catch (error) {
-      console.error('Error generating response:', error);
+      console.error('❌ Error generating response:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
+      let detailedError = `Sorry, I encountered an error: ${errorMessage}`;
+      
+      // Provide more specific guidance based on error type
+      if (errorMessage.includes('timeout')) {
+        detailedError += '\n\n🕐 The request timed out. Ollama might be busy or slow to respond.';
+      } else if (errorMessage.includes('fetch') || errorMessage.includes('network')) {
+        detailedError += '\n\n🌐 Network connection issue. Please check if Ollama is running on localhost:11434.';
+      } else if (errorMessage.includes('Model') && errorMessage.includes('not available')) {
+        detailedError += '\n\n🤖 The AI model is not available. Try running: ollama pull tinyllama:latest';
+      } else {
+        detailedError += '\n\n💡 Please check if Ollama is running and the model is available.';
+      }
       
       setConversation(prev => 
         prev.map((item, index) => 
           index === prev.length - 1 
             ? { 
                 ...item, 
-                response: `Sorry, I encountered an error: ${errorMessage}\n\nPlease check if Ollama is running and the model is available.`,
+                response: detailedError,
                 isLoading: false 
               }
             : item
@@ -119,24 +155,53 @@ export default function ChatPage() {
     "What should I do if I have a fever?"
   ];
 
-  const handleInstallOllama = () => {
-    // For development, provide multiple options
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      alert('For development setup:\n\n1. Run: npm run setup\n2. Or manually: bash install-ollama.sh\n3. Then restart the dev server');
-    } else {
-      // For production builds, direct to download
-      window.open('https://ollama.ai/download', '_blank');
+  const handleDebugConnection = async () => {
+    setDebugInfo(['🔍 Running connection diagnostics...']);
+    setShowDebugPanel(true);
+    
+    try {
+      const result = await debugOllamaConnection();
+      setDebugInfo(result.details);
+    } catch (error) {
+      setDebugInfo(['❌ Debug failed:', error instanceof Error ? error.message : 'Unknown error']);
+    }
+  };
+
+  const handleTestModel = async () => {
+    setDebugInfo(prev => [...prev, '', '🧪 Testing model...']);
+    
+    try {
+      // Test the model with a simple query
+      const testResult = await transformersService.generateMedicalResponse("Hello, how are you?");
+      setDebugInfo(prev => [...prev, 
+        `✅ Model test successful (${testResult.metadata.duration}ms)`, 
+        `Model: ${testResult.metadata.model}`,
+        `Response: ${testResult.response.substring(0, 100)}...`
+      ]);
+    } catch (error) {
+      setDebugInfo(prev => [...prev, `❌ Model test error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
     }
   };
 
   const handleStartOllama = async () => {
-    setConnectionError('Attempting to start Ollama...');
+    setConnectionError('Attempting to reconnect to AI...');
     
-    // Try to trigger health check which includes auto-recovery
-    const isHealthy = await ollamaService.healthCheck();
-    
-    if (!isHealthy) {
-      setConnectionError('Could not start Ollama automatically. Please run: ollama serve');
+    try {
+      // Try to trigger health check
+      console.log('🔄 Manual retry: checking AI health...');
+      const isHealthy = await transformersService.healthCheck();
+      
+      if (isHealthy) {
+        setConnectionError(null);
+        console.log('✅ Manual retry successful');
+      } else {
+        setConnectionError('AI models are initializing. Please wait...');
+        console.error('❌ Manual retry failed');
+      }
+    } catch (error) {
+      const errorMsg = `Connection retry failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      setConnectionError(errorMsg);
+      console.error('❌ Manual retry error:', error);
     }
   };
 
@@ -158,11 +223,15 @@ export default function ChatPage() {
                 <span className="text-gray-600">
                   {isAIConnected ? 'AI Ready' : 'AI Disconnected'}
                 </span>
-                {ollamaService.getConfig().model && (
+                {isAIConnected && (
                   <>
                     <span className="text-gray-400">•</span>
                     <span className="text-gray-500 text-xs">
-                      {ollamaService.getConfig().model}
+                      {transformersService.getModelInfo().name}
+                    </span>
+                    <span className="text-gray-400">•</span>
+                    <span className="text-gray-500 text-xs">
+                      Browser-based AI
                     </span>
                   </>
                 )}
@@ -171,12 +240,20 @@ export default function ChatPage() {
           </div>
           
           {!isAIConnected && (
-            <button
-              onClick={handleInstallOllama}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-            >
-              Install Ollama
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleStartOllama}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+              >
+                Initialize AI
+              </button>
+              <button
+                onClick={handleDebugConnection}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm"
+              >
+                Debug
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -209,24 +286,18 @@ export default function ChatPage() {
             ) : (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 max-w-md mx-auto">
                 <div className="text-orange-800 mb-4">
-                  <h3 className="font-semibold mb-2">🤖 AI Service Required</h3>
-                  <p className="text-sm">To use the Medical AI Assistant, you need Ollama installed and running.</p>
+                  <h3 className="font-semibold mb-2">🤖 AI Initializing</h3>
+                  <p className="text-sm">The AI models are loading. This may take a few minutes on first use.</p>
                 </div>
                 <div className="space-y-3">
-                  <button
-                    onClick={handleInstallOllama}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-                  >
-                    Install Ollama
-                  </button>
                   <button
                     onClick={handleStartOllama}
                     className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                   >
-                    Try to Start Ollama
+                    Initialize AI Models
                   </button>
                   <p className="text-xs text-orange-700 text-center">
-                    Or run manually: <code className="bg-orange-100 px-1 rounded">ollama serve</code>
+                    AI models are downloading and initializing in your browser
                   </p>
                 </div>
               </div>
@@ -320,6 +391,33 @@ export default function ChatPage() {
             <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center space-x-2">
               <span className="text-yellow-600">⚠️</span>
               <span className="text-sm">{connectionError}</span>
+            </div>
+          )}
+          
+          {showDebugPanel && (
+            <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-gray-700">Connection Debug Info</h3>
+                <button
+                  onClick={() => setShowDebugPanel(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="space-y-1 text-xs font-mono text-gray-600 max-h-40 overflow-y-auto">
+                {debugInfo.map((line, index) => (
+                  <div key={index}>{line}</div>
+                ))}
+              </div>
+              {isAIConnected && (
+                <button
+                  onClick={handleTestModel}
+                  className="mt-3 px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                >
+                  Test Model
+                </button>
+              )}
             </div>
           )}
         </form>

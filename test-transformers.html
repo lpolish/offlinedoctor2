@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transformers.js Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .loading {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Transformers.js Medical AI Test</h1>
+        
+        <div id="status" class="status loading">
+            Initializing AI models... This may take a few minutes on first run.
+        </div>
+        
+        <div>
+            <h3>Test the Medical AI:</h3>
+            <textarea id="userInput" placeholder="Ask a medical question here..." disabled>What are the symptoms of a common cold?</textarea>
+            <br>
+            <button id="testBtn" onclick="testMedicalAI()" disabled>Ask Medical AI</button>
+            <button onclick="testHealthCheck()">Check AI Status</button>
+        </div>
+        
+        <div id="response" style="display: none;"></div>
+        
+        <div style="margin-top: 30px;">
+            <h3>Sample Questions:</h3>
+            <ul>
+                <li>"What are the symptoms of a common cold?"</li>
+                <li>"What should I do if I have a fever?"</li>
+                <li>"How can I maintain good heart health?"</li>
+                <li>"What are some general tips for staying healthy?"</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the service (adjust path as needed)
+        import transformersService from './src/services/transformers.service.js';
+        
+        // Make it available globally for testing
+        window.transformersService = transformersService;
+        
+        // Set up connection monitoring
+        transformersService.onConnectionChange((connected) => {
+            const statusDiv = document.getElementById('status');
+            const testBtn = document.getElementById('testBtn');
+            const userInput = document.getElementById('userInput');
+            
+            if (connected) {
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ AI Ready! You can now ask medical questions.';
+                testBtn.disabled = false;
+                userInput.disabled = false;
+            } else {
+                statusDiv.className = 'status loading';
+                statusDiv.textContent = '🔄 AI is initializing... Please wait.';
+                testBtn.disabled = true;
+                userInput.disabled = true;
+            }
+        });
+        
+        // Test functions
+        window.testMedicalAI = async function() {
+            const userInput = document.getElementById('userInput');
+            const responseDiv = document.getElementById('response');
+            const testBtn = document.getElementById('testBtn');
+            
+            const question = userInput.value.trim();
+            if (!question) {
+                alert('Please enter a question');
+                return;
+            }
+            
+            testBtn.disabled = true;
+            testBtn.textContent = 'Thinking...';
+            responseDiv.style.display = 'block';
+            responseDiv.innerHTML = '<p>🤔 AI is thinking...</p>';
+            
+            try {
+                const startTime = Date.now();
+                const result = await transformersService.generateMedicalResponse(question);
+                const duration = Date.now() - startTime;
+                
+                responseDiv.innerHTML = `
+                    <div class="response">
+                        <h4>📋 Medical AI Response:</h4>
+                        <p><strong>Question:</strong> ${question}</p>
+                        <p><strong>Response:</strong> ${result.response}</p>
+                        <div style="margin-top: 15px; font-size: 0.9em; color: #666;">
+                            <strong>Model:</strong> ${result.metadata.model} | 
+                            <strong>Duration:</strong> ${duration}ms | 
+                            <strong>Confidence:</strong> ${result.confidence}
+                        </div>
+                    </div>
+                `;
+                
+                console.log('Medical AI Response:', result);
+                
+            } catch (error) {
+                responseDiv.innerHTML = `
+                    <div class="status error">
+                        <h4>❌ Error:</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+                console.error('Error:', error);
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = 'Ask Medical AI';
+            }
+        };
+        
+        window.testHealthCheck = async function() {
+            try {
+                const isHealthy = await transformersService.healthCheck();
+                const modelInfo = transformersService.getModelInfo();
+                
+                alert(`Health Check Result: ${isHealthy ? 'Healthy' : 'Not Ready'}\\n\\nModel: ${modelInfo.name}\\nStatus: ${modelInfo.status}\\nInitialized: ${modelInfo.initialized}`);
+                
+            } catch (error) {
+                alert(`Health check failed: ${error.message}`);
+            }
+        };
+        
+        console.log('🧪 Transformers.js test page loaded');
+        console.log('Available functions: testMedicalAI(), testHealthCheck()');
+        console.log('Service available at: window.transformersService');
+    </script>
+</body>
+</html>

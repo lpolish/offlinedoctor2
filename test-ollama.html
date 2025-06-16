@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ollama Connection Test</title>
+</head>
+<body>
+    <h1>Ollama Connection Test</h1>
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="testGenerate()">Test Generate</button>
+    <div id="results"></div>
+
+    <script>
+        async function testConnection() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>Testing connection...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:11434/api/tags');
+                const data = await response.json();
+                results.innerHTML = `<p>✅ Connection successful!</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                results.innerHTML = `<p>❌ Connection failed: ${error.message}</p>`;
+            }
+        }
+
+        async function testGenerate() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>Testing generate...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:11434/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: 'tinyllama:latest',
+                        prompt: 'Say hello',
+                        stream: false
+                    })
+                });
+                
+                const data = await response.json();
+                results.innerHTML = `<p>✅ Generate successful!</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                results.innerHTML = `<p>❌ Generate failed: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
