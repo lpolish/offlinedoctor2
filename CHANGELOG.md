@@ -1,3 +1,8 @@
+## [vmain.0.1] - 2025-06-16
+
+### 🔧 Other Changes
+- test: trigger auto-version workflow
+
 # Changelog
 
 All notable changes to the Offline Medical Assistant will be documented in this file.
