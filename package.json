@@ -1,7 +1,7 @@
 {
   "name": "temp-app",
   "private": true,
-  "version": "1.0.0",
+  "version": "main.1.0",
   "type": "module",
   "author": "Medical AI Team",
   "keywords": [

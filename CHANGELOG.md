@@ -1,3 +1,10 @@
+## [vmain.1.0] - 2025-06-16
+
+### ✨ New Features
+- feat: Migrate from Ollama to Transformers.js for truly offline AI
+### 🔧 Other Changes
+- test: trigger auto-version workflow
+
 # Changelog
 
 All notable changes to the Offline Medical Assistant will be documented in this file.
