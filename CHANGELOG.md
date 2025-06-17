@@ -1,3 +1,11 @@
+## [v2.0.1] - 2025-06-17
+
+### 🐛 Bug Fixes
+- fix: update dependencies and remove vulnerabilities
+### 🔧 Other Changes
+- Migrate from Ollama to browser-based Transformers.js AI
+- Update README.md
+
 # Changelog
 
 All notable changes to the Offline Medical Assistant will be documented in this file.
