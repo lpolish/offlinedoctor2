@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import transformersService from '../../services/transformers.service';
-import { debugOllamaConnection } from '../../utils/debug';
 
 interface ConversationItem {
   query: string;
@@ -48,7 +47,7 @@ export default function ChatPage() {
         const connected = await transformersService.healthCheck();
         setIsAIConnected(connected);
         if (!connected) {
-          setConnectionError('AI models are initializing. Please wait...');
+          setConnectionError('AI models are downloading and initializing. This may take several minutes on first use...');
         } else {
           console.log('✅ Initial health check successful');
         }
@@ -156,12 +155,26 @@ export default function ChatPage() {
   ];
 
   const handleDebugConnection = async () => {
-    setDebugInfo(['🔍 Running connection diagnostics...']);
+    setDebugInfo(['🔍 Running AI connection diagnostics...']);
     setShowDebugPanel(true);
     
     try {
-      const result = await debugOllamaConnection();
-      setDebugInfo(result.details);
+      const isConnected = await transformersService.healthCheck();
+      const details = [
+        `🔗 AI Connection Status: ${isConnected ? 'Connected' : 'Disconnected'}`,
+        `🧠 Service Type: Transformers.js (Browser-based)`,
+        `📱 Platform: ${navigator.userAgent.includes('Tauri') ? 'Tauri Desktop' : 'Web Browser'}`,
+        `💾 Cache Available: ${typeof caches !== 'undefined' ? 'Yes' : 'No'}`,
+        `🔧 WebAssembly Support: ${typeof WebAssembly !== 'undefined' ? 'Yes' : 'No'}`,
+      ];
+      
+      if (isConnected) {
+        details.push('✅ AI models are loaded and ready');
+      } else {
+        details.push('⚠️ AI models are still initializing');
+      }
+      
+      setDebugInfo(details);
     } catch (error) {
       setDebugInfo(['❌ Debug failed:', error instanceof Error ? error.message : 'Unknown error']);
     }
@@ -183,25 +196,27 @@ export default function ChatPage() {
     }
   };
 
-  const handleStartOllama = async () => {
-    setConnectionError('Attempting to reconnect to AI...');
+  const handleInitializeAI = async () => {
+    setConnectionError('Starting AI model initialization...');
     
     try {
-      // Try to trigger health check
-      console.log('🔄 Manual retry: checking AI health...');
-      const isHealthy = await transformersService.healthCheck();
+      console.log('🔄 Manual AI initialization started...');
       
-      if (isHealthy) {
+      // Use the explicit initialization method
+      const success = await transformersService.initializeModels();
+      
+      if (success) {
         setConnectionError(null);
-        console.log('✅ Manual retry successful');
+        setIsAIConnected(true);
+        console.log('✅ AI initialization successful');
       } else {
-        setConnectionError('AI models are initializing. Please wait...');
-        console.error('❌ Manual retry failed');
+        setConnectionError('AI model initialization failed. Please check console for details.');
+        console.error('❌ AI initialization failed');
       }
     } catch (error) {
-      const errorMsg = `Connection retry failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const errorMsg = `Initialization error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       setConnectionError(errorMsg);
-      console.error('❌ Manual retry error:', error);
+      console.error('❌ AI initialization error:', error);
     }
   };
 
@@ -242,7 +257,7 @@ export default function ChatPage() {
           {!isAIConnected && (
             <div className="flex space-x-2">
               <button
-                onClick={handleStartOllama}
+                onClick={handleInitializeAI}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
               >
                 Initialize AI
@@ -287,11 +302,14 @@ export default function ChatPage() {
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 max-w-md mx-auto">
                 <div className="text-orange-800 mb-4">
                   <h3 className="font-semibold mb-2">🤖 AI Initializing</h3>
-                  <p className="text-sm">The AI models are loading. This may take a few minutes on first use.</p>
+                  <p className="text-sm">The AI models are downloading and loading. This process can take 3-5 minutes on first use as models are cached in your browser.</p>
+                  <p className="text-xs mt-2 text-orange-600">
+                    Progress: Downloading transformers.js models...
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <button
-                    onClick={handleStartOllama}
+                    onClick={handleInitializeAI}
                     className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                   >
                     Initialize AI Models
@@ -368,7 +386,7 @@ export default function ChatPage() {
                 placeholder={
                   isAIConnected 
                     ? "Ask about symptoms, conditions, or health concerns..." 
-                    : "Ollama is required to send messages"
+                    : "AI models are initializing..."
                 }
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 disabled={!isAIConnected || isLoading}

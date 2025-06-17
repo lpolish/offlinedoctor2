@@ -10,6 +10,8 @@ env.allowRemoteModels = true; // Allow downloading models
 env.allowLocalModels = true;
 env.useBrowserCache = true; // Cache models in browser storage
 env.cacheDir = '/models'; // Set cache directory
+env.remoteHost = 'https://huggingface.co'; // Use Hugging Face CDN
+env.remotePathTemplate = '{model}/resolve/{revision}/'; // Path template
 
 interface MedicalResponse {
   response: string;
@@ -52,6 +54,14 @@ export class TransformersService {
       topP: 0.9,
       doSample: true
     },
+    'Xenova/distilgpt2': {
+      name: 'Xenova/distilgpt2',
+      task: 'text-generation',
+      maxLength: 256,
+      temperature: 0.8,
+      topP: 0.9,
+      doSample: true
+    },
     'distilgpt2': {
       name: 'distilgpt2',
       task: 'text-generation',
@@ -70,11 +80,11 @@ export class TransformersService {
     }
   };
 
-  private currentModel: string = 'distilgpt2'; // Start with smaller, faster model
+  private currentModel: string = 'Xenova/distilgpt2'; // Use Xenova version for better compatibility
 
   constructor() {
-    console.log('🤖 Initializing Transformers.js service...');
-    this.initialize();
+    console.log('🤖 Transformers.js service created (manual initialization required)...');
+    // Don't auto-initialize to avoid issues - wait for manual trigger
   }
 
   /**
@@ -92,14 +102,30 @@ export class TransformersService {
   private async performInitialization(): Promise<void> {
     try {
       console.log('📥 Loading AI models... This may take a few minutes on first run.');
+      console.log('🌐 Checking internet connectivity...');
+      
+      // Test basic connectivity first
+      try {
+        await fetch('https://huggingface.co', { method: 'HEAD', mode: 'no-cors' });
+        console.log('✅ Internet connectivity confirmed');
+      } catch (connectError) {
+        console.warn('⚠️ Limited connectivity detected, trying cached models...');
+      }
       
       // Initialize the main text generation model
       const modelConfig = this.modelConfigs[this.currentModel];
-      console.log(`🔄 Loading model: ${this.currentModel}`);
+      console.log(`🔄 Loading model: ${this.currentModel} (${modelConfig.task})`);
       
       this.generator = await pipeline(modelConfig.task as any, this.currentModel, {
         revision: 'main',
         quantized: true, // Use quantized models for better performance
+        progress_callback: (progress: any) => {
+          if (progress.status === 'downloading') {
+            console.log(`📥 Downloading: ${progress.file} (${Math.round(progress.progress || 0)}%)`);
+          } else if (progress.status === 'loading') {
+            console.log(`🔄 Loading: ${progress.file}`);
+          }
+        }
       });
 
       this.isInitialized = true;
@@ -108,13 +134,26 @@ export class TransformersService {
       
     } catch (error) {
       console.error('❌ Failed to initialize AI models:', error);
+      
+      // Provide more specific error information
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (errorMessage.includes('<!doctype') || errorMessage.includes('Unexpected token')) {
+          errorMessage = 'Network error: Unable to download models. Check internet connection.';
+        } else if (errorMessage.includes('fetch')) {
+          errorMessage = 'Network error: Cannot reach model repository.';
+        }
+      }
+      
+      console.error('💡 Error details:', errorMessage);
       this.isInitialized = false;
       this.notifyConnectionChange(false);
       
       // Try fallback model
-      if (this.currentModel !== 'distilgpt2') {
+      if (this.currentModel !== 'Xenova/distilgpt2') {
         console.log('🔄 Trying fallback model...');
-        this.currentModel = 'distilgpt2';
+        this.currentModel = 'Xenova/distilgpt2';
         this.initializationPromise = null;
         return this.initialize();
       }
@@ -152,10 +191,23 @@ export class TransformersService {
    * Check if the service is ready
    */
   async healthCheck(): Promise<boolean> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
+    // Don't auto-initialize in health check - return current status
     return this.isInitialized;
+  }
+
+  /**
+   * Manually initialize the service
+   */
+  async initializeModels(): Promise<boolean> {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+      return this.isInitialized;
+    } catch (error) {
+      console.error('Manual initialization failed:', error);
+      return false;
+    }
   }
 
   /**
@@ -165,11 +217,11 @@ export class TransformersService {
     const startTime = Date.now();
     
     if (!this.isInitialized) {
-      await this.initialize();
+      throw new Error('AI models not initialized. Please click "Initialize AI Models" first.');
     }
 
     if (!this.generator) {
-      throw new Error('AI model not initialized');
+      throw new Error('AI model not available');
     }
 
     try {
